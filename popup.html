@@ -13,6 +13,36 @@
     <div id="stock-info">
         <p id="stock-name">Detecting stock...</p>
     </div>
+
+    <div id="perplexity-section">
+        <div class="form-group">
+            <label for="company-name">Company Name:</label>
+            <input type="text" id="company-name" placeholder="e.g., Apple Inc." value="Apple Inc." />
+        </div>
+        
+        <div class="form-group">
+            <label for="ticker-symbol">Ticker Symbol:</label>
+            <input type="text" id="ticker-symbol" placeholder="e.g., AAPL" value="AAPL" />
+        </div>
+        
+        <div class="date-inputs">
+            <div class="form-group">
+                <label for="start-date">Start Date:</label>
+                <input type="date" id="start-date" value="2024-10-01" />
+            </div>
+            
+            <div class="form-group">
+                <label for="end-date">End Date:</label>
+                <input type="date" id="end-date" value="2024-10-31" />
+            </div>
+        </div>
+        
+        <button id="generate-analysis-btn">Generate Analysis</button>
+        
+        <div id="perplexity-results">
+            <p id="perplexity-placeholder">Click "Generate Analysis" to get AI-powered stock insights...</p>
+        </div>
+    </div>
     <script src="popup.js"></script>
 </body>
 
