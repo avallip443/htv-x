@@ -1,44 +1,54 @@
-let hoverObserver = null;
-let latestHover = { value: null, time: null };
+(function () {
+  const detectStockName = () => {
+    const element = document.querySelector('[data-attrid][role="heading"]');
+    if (element) {
+      const stockName = element.innerText.trim();
+      chrome.storage.local.set({ stockName });
+    }
+  };
 
-function startHoverObserver() {
-  if (hoverObserver) return; // avoid duplicates
+  detectStockName();
+
+  const observer = new MutationObserver(detectStockName);
+  observer.observe(document.body, { childList: true, subtree: true });
+})();
+
+let isDragging = false;
+let hoverObserver = null;
+let lastRange = null;
+
+document.addEventListener("mousedown", () => {
+  isDragging = true;
+  console.log("🟢 Started drag observation");
 
   hoverObserver = new MutationObserver(() => {
     const valueEl = document.querySelector('.knowledge-finance-wholepage-chart__hover-card-value');
     const timeEl = document.querySelector('.knowledge-finance-wholepage-chart__hover-card-time');
 
-    if (valueEl && timeEl) {
-      latestHover.value = valueEl.innerText.trim();
-      latestHover.time = timeEl.innerText.trim();
+    console.log("timeEl:", timeEl)
+    console.log("check", timeEl.innerText.includes("-"))
+    if (timeEl && timeEl.innerText.includes("-")) { 
+      lastRange = timeEl.innerText.trim();
+        console.log("last time:", lastRange)
     }
   });
 
   hoverObserver.observe(document.body, { childList: true, subtree: true });
-}
-
-function stopHoverObserverAndSave() {
-  if (hoverObserver) {
-    hoverObserver.disconnect();
-    hoverObserver = null;
-
-    if (latestHover.value && latestHover.time) {
-      console.log("💾 Final Hover Snapshot →", latestHover);
-      chrome.storage.local.set({ stockHover: { ...latestHover } });
-    }
-
-    // Reset for next drag
-    latestHover = { value: null, time: null };
-  }
-}
-
-// --- Attach triggers ---
-document.addEventListener("mousedown", () => {
-  console.log("🟢 mousedown: observing hover data...");
-  startHoverObserver();
 });
 
 document.addEventListener("mouseup", () => {
-  console.log("🔴 mouseup: stopping observer and saving latest value/time...");
-  stopHoverObserverAndSave();
+  if (isDragging) {
+    isDragging = false;
+    if (hoverObserver) {
+      hoverObserver.disconnect();
+      hoverObserver = null;
+    }
+    if (lastRange) {
+      console.log("💾 Final range snapshot:", lastRange);
+      chrome.storage.local.set({ stockRange: lastRange });
+      lastRange = null;
+    } else {
+      console.log("No range detected.");
+    }
+  }
 });
