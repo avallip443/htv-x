@@ -5376,6 +5376,7 @@ var ChromeExtensionService = /*#__PURE__*/function () {
                     startPrice: 185.00,
                     endPrice: 195.00,
                     percentChange: 5.4,
+                    priceChange: 0.0,
                     aiAnalysis: "Based on recent market data for ".concat(ticker, ", the stock has shown positive momentum. Market sentiment appears favorable with strong technical indicators. Key drivers include positive earnings expectations and sector rotation. However, investors should monitor for potential volatility and consider risk management strategies."),
                     lastUpdated: "2 minutes ago",
                     confidence: 87,
@@ -5400,7 +5401,7 @@ var ChromeExtensionService = /*#__PURE__*/function () {
         return _regenerator().w(function (_context5) {
           while (1) switch (_context5.p = _context5.n) {
             case 0:
-              API_KEY = "AIzaSyDlWRCiOk8kW8JqGW8Iq1AiizSK6EiNHzY";
+              API_KEY = "MISSING_ENV_VAR".GEMINI_API_KEY;
               if (API_KEY) {
                 _context5.n = 1;
                 break;
@@ -5495,51 +5496,120 @@ function StockAnalysisSidebar(_ref) {
     _useState10 = _slicedToArray(_useState1, 2),
     inputMessage = _useState10[0],
     setInputMessage = _useState10[1];
-
-  // Default sample data
   var defaultData = {
-    stockName: "Apple Inc.",
-    ticker: "AAPL",
-    startDate: "Jan 1, 2025",
-    endDate: "Jan 15, 2025",
-    startPrice: 185.00,
-    endPrice: 195.00,
-    percentChange: 5.4,
-    aiAnalysis: "Apple's stock has shown strong momentum over the past two weeks, driven by positive market sentiment and strong holiday sales data. The tech sector has been performing well, with AAPL benefiting from increased consumer spending. Analysts suggest continued growth potential, though investors should remain cautious of broader market volatility.",
-    lastUpdated: "2 minutes ago",
+    stockName: "",
+    ticker: "",
+    startDate: "",
+    endDate: "",
+    startPrice: 0.00,
+    endPrice: 0.00,
+    percentChange: 0.0,
+    priceChange: 0.0,
+    aiAnalysis: "",
+    lastUpdated: "",
     confidence: 87,
     hasError: false
   };
   var currentData = stockData || data || defaultData;
+  var parseStoredRange = function parseStoredRange(rangeText) {
+    if (!rangeText) return {
+      startDate: defaultData.startDate,
+      endDate: defaultData.endDate
+    };
+    var start = rangeText;
+    var end = rangeText;
+    if (rangeText.includes("→")) {
+      var _rangeText$split$map = rangeText.split("→").map(function (s) {
+        return s.trim();
+      });
+      var _rangeText$split$map2 = _slicedToArray(_rangeText$split$map, 2);
+      start = _rangeText$split$map2[0];
+      end = _rangeText$split$map2[1];
+    } else if (rangeText.toLowerCase().includes(" to ")) {
+      var _rangeText$split$map3 = rangeText.split(/\s+to\s+/i).map(function (s) {
+        return s.trim();
+      });
+      var _rangeText$split$map4 = _slicedToArray(_rangeText$split$map3, 2);
+      start = _rangeText$split$map4[0];
+      end = _rangeText$split$map4[1];
+    } else if (rangeText.includes("-")) {
+      var parts = rangeText.split("-").map(function (s) {
+        return s.trim();
+      });
+      if (parts.length >= 2) {
+        start = parts[0];
+        end = parts.slice(1).join(" - ");
+      }
+    }
+    return {
+      startDate: start,
+      endDate: end
+    };
+  };
   (0,react.useEffect)(function () {
-    // Check if we have stored data or should generate new analysis
     var initializeData = /*#__PURE__*/function () {
       var _ref2 = _asyncToGenerator(/*#__PURE__*/_regenerator().m(function _callee6() {
-        var storedData;
+        var _stockRange$percentag, results, storedName, storedTicker, storedRange, stockRange, _parseStoredRange, startDate, endDate, merged, _t2;
         return _regenerator().w(function (_context6) {
-          while (1) switch (_context6.n) {
+          while (1) switch (_context6.p = _context6.n) {
             case 0:
+              _context6.p = 0;
               _context6.n = 1;
-              return ChromeExtensionService.getStorageData('stockAnalysis');
+              return Promise.all([ChromeExtensionService.getStorageData('stockName'), ChromeExtensionService.getStorageData('stockTicker'), ChromeExtensionService.getStorageData('stockRange')]);
             case 1:
-              storedData = _context6.v;
-              if (storedData) {
-                setStockData(storedData);
-              }
+              results = _context6.v;
+              storedName = results[0];
+              storedTicker = results[1];
+              storedRange = results[2];
+              stockRange = storedRange;
+              _parseStoredRange = parseStoredRange(stockRange === null || stockRange === void 0 ? void 0 : stockRange.stockTimeRange), startDate = _parseStoredRange.startDate, endDate = _parseStoredRange.endDate;
+              merged = {
+                stockName: storedName || defaultData.stockName,
+                ticker: storedTicker || defaultData.ticker,
+                startDate: startDate,
+                endDate: endDate,
+                startPrice: stockRange !== null && stockRange !== void 0 && stockRange.endPrice && stockRange !== null && stockRange !== void 0 && stockRange.priceChange ? stockRange.endPrice - stockRange.priceChange : defaultData.startPrice,
+                endPrice: (stockRange === null || stockRange === void 0 ? void 0 : stockRange.endPrice) || defaultData.endPrice,
+                percentChange: (_stockRange$percentag = stockRange === null || stockRange === void 0 ? void 0 : stockRange.percentageChange) !== null && _stockRange$percentag !== void 0 ? _stockRange$percentag : defaultData.percentChange,
+                priceChange: (stockRange === null || stockRange === void 0 ? void 0 : stockRange.priceChange) || defaultData.priceChange,
+                aiAnalysis: defaultData.aiAnalysis,
+                lastUpdated: "just now",
+                confidence: defaultData.confidence,
+                hasError: false
+              };
+              setStockData(merged);
+              _context6.n = 3;
+              break;
             case 2:
+              _context6.p = 2;
+              _t2 = _context6.v;
+              console.error('Failed to initialize stock data from storage', _t2);
+            case 3:
               return _context6.a(2);
           }
-        }, _callee6);
+        }, _callee6, null, [[0, 2]]);
       }));
       return function initializeData() {
         return _ref2.apply(this, arguments);
       };
     }();
     initializeData();
+    var onStorageChanged = function onStorageChanged(changes, areaName) {
+      if (areaName !== 'local') return;
+      if (changes.stockName || changes.stockTicker || changes.stockRange) {
+        initializeData();
+      }
+    };
+    chrome.storage.onChanged.addListener(onStorageChanged);
+    return function () {
+      try {
+        chrome.storage.onChanged.removeListener(onStorageChanged);
+      } catch (_unused) {}
+    };
   }, []);
   var handleGenerateAnalysis = /*#__PURE__*/function () {
     var _ref3 = _asyncToGenerator(/*#__PURE__*/_regenerator().m(function _callee7() {
-      var analysis, _t2;
+      var analysis, _t3;
       return _regenerator().w(function (_context7) {
         while (1) switch (_context7.p = _context7.n) {
           case 0:
@@ -5557,7 +5627,7 @@ function StockAnalysisSidebar(_ref) {
             break;
           case 4:
             _context7.p = 4;
-            _t2 = _context7.v;
+            _t3 = _context7.v;
             setStockData(StockAnalysisSidebar_objectSpread(StockAnalysisSidebar_objectSpread({}, defaultData), {}, {
               hasError: true,
               errorMessage: 'Failed to generate analysis. Please try again.'
@@ -5577,7 +5647,7 @@ function StockAnalysisSidebar(_ref) {
   }();
   var handleSendMessage = /*#__PURE__*/function () {
     var _ref4 = _asyncToGenerator(/*#__PURE__*/_regenerator().m(function _callee8(message) {
-      var userMessage, response, aiMessage, errorMessage, _t3;
+      var userMessage, response, aiMessage, errorMessage, _t4;
       return _regenerator().w(function (_context8) {
         while (1) switch (_context8.p = _context8.n) {
           case 0:
@@ -5618,7 +5688,7 @@ function StockAnalysisSidebar(_ref) {
             break;
           case 4:
             _context8.p = 4;
-            _t3 = _context8.v;
+            _t4 = _context8.v;
             errorMessage = {
               id: (Date.now() + 1).toString(),
               text: "Sorry, I'm having trouble connecting right now. Please try again later.",
@@ -5645,8 +5715,7 @@ function StockAnalysisSidebar(_ref) {
     setInputMessage(question);
     handleSendMessage(question);
   };
-  var isPositive = currentData.percentChange >= 0;
-  var priceChange = currentData.endPrice - currentData.startPrice;
+  var isPositive = currentData.priceChange >= 0;
 
   // Error state
   if (currentData.hasError) {
@@ -5751,7 +5820,7 @@ function StockAnalysisSidebar(_ref) {
           children: [/*#__PURE__*/(0,jsx_runtime.jsxs)("div", {
             children: [/*#__PURE__*/(0,jsx_runtime.jsxs)("p", {
               className: "text-slate-400 text-sm mb-2",
-              children: ["$", currentData.startPrice.toFixed(2), " \u2192 $", currentData.endPrice.toFixed(2)]
+              children: ["$", Number(currentData.startPrice).toFixed(2), " \u2192 $", Number(currentData.endPrice).toFixed(2)]
             }), /*#__PURE__*/(0,jsx_runtime.jsxs)("div", {
               className: "flex items-center gap-2",
               children: [isPositive ? /*#__PURE__*/(0,jsx_runtime.jsx)(TrendingUp, {
@@ -5760,7 +5829,7 @@ function StockAnalysisSidebar(_ref) {
                 className: "w-5 h-5 text-red-500"
               }), /*#__PURE__*/(0,jsx_runtime.jsxs)("span", {
                 className: "text-2xl font-bold ".concat(isPositive ? "text-emerald-500" : "text-red-500"),
-                children: [isPositive ? "+" : "", "$", Math.abs(priceChange).toFixed(2)]
+                children: [isPositive ? "+" : "", "$", currentData.priceChange]
               })]
             })]
           }), /*#__PURE__*/(0,jsx_runtime.jsx)("div", {
