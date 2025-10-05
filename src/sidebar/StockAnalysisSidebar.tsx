@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { Card } from "../components/ui/card";
 import { Badge } from "../components/ui/badge";
 import { Button } from "../components/ui/button";
@@ -69,15 +69,21 @@ class ChromeExtensionService {
     });
   }
 
-  static async generateAnalysis(ticker: string) {
+  static async generateAnalysis(ticker: string, startDateInput?: string, endDateInput?: string) {
     try {
-      // Get current date and date 30 days ago for analysis period
-      const endDate = new Date();
-      const startDate = new Date();
-      startDate.setDate(endDate.getDate() - 30);
-      
-      const startDateStr = PerplexityService.formatDateForAnalysis(startDate.toISOString());
-      const endDateStr = PerplexityService.formatDateForAnalysis(endDate.toISOString());
+      // Use provided range if available; otherwise default to last 30 days
+      let startDateStr: string;
+      let endDateStr: string;
+      if (startDateInput && endDateInput) {
+        startDateStr = PerplexityService.formatDateForAnalysis(startDateInput);
+        endDateStr = PerplexityService.formatDateForAnalysis(endDateInput);
+      } else {
+        const endDate = new Date();
+        const startDate = new Date();
+        startDate.setDate(endDate.getDate() - 30);
+        startDateStr = PerplexityService.formatDateForAnalysis(startDate.toISOString());
+        endDateStr = PerplexityService.formatDateForAnalysis(endDate.toISOString());
+      }
       const companyName = PerplexityService.getCompanyName(ticker);
       
       // Generate analysis using Perplexity
@@ -127,11 +133,11 @@ class ChromeExtensionService {
         endPrice: 195.00,
         percentChange: 5.4,
         priceChange: 10.00,
-        aiAnalysis: `Unable to generate comprehensive analysis at this time. Error: ${error.message}. Please try again later.`,
+        aiAnalysis: `Unable to generate comprehensive analysis at this time. Error: ${(error as any)?.message || 'Unknown error'}. Please try again later.`,
         lastUpdated: "Error",
         confidence: 0,
         hasError: true,
-        errorMessage: error.message,
+        errorMessage: (error as any)?.message || 'Unknown error',
         sources: [],
         sentiment: {
           overallSentiment: 'neutral',
@@ -266,7 +272,7 @@ Format your answer in markdown. `;
       return data.candidates[0].content.parts[0].text;
     } catch (error) {
       console.error('Gemini API error:', error);
-      return `Connection Error: ${error.message}`;
+      return `Connection Error: ${(error as any)?.message || 'Unknown error'}`;
     }
   }
 
@@ -302,6 +308,8 @@ export default function StockAnalysisSidebar({ data }: StockAnalysisSidebarProps
   const [isTyping, setIsTyping] = useState(false);
   const [inputMessage, setInputMessage] = useState("");
   const [showSentimentExplanation, setShowSentimentExplanation] = useState(false);
+  const lastSignatureRef = useRef<string | null>(null);
+  const isGeneratingRef = useRef<boolean>(false);
 
   const defaultData: StockData = {
     stockName: "",
@@ -374,9 +382,48 @@ export default function StockAnalysisSidebar({ data }: StockAnalysisSidebarProps
           lastUpdated: "just now",
           confidence: defaultData.confidence,
           hasError: false,
+          sentiment: defaultData.sentiment,
         };
 
         setStockData(merged);
+
+        // If we have a ticker and a date range, fetch sentiment immediately
+        if (storedTicker && startDate && endDate) {
+          try {
+            const sentiment = await AlphaVantageService.getSentimentAnalysis(
+              storedTicker,
+              startDate,
+              endDate
+            );
+            setStockData(prev => prev ? { ...prev, sentiment } : { ...merged, sentiment });
+          } catch (e) {
+            // ignore; default sentiment will remain
+          }
+        }
+
+        // Auto-run full AI analysis (Perplexity + sources) when ticker/range change
+        const signature = `${storedTicker || ''}|${startDate}|${endDate}`;
+        const shouldRunAnalysis = Boolean(storedTicker && signature !== lastSignatureRef.current);
+
+        if (shouldRunAnalysis && storedTicker && !isGeneratingRef.current) {
+          try {
+            setIsLoading(true);
+            isGeneratingRef.current = true;
+            const analysis = await ChromeExtensionService.generateAnalysis(
+              storedTicker,
+              startDate,
+              endDate
+            );
+            setStockData(analysis as StockData);
+            await ChromeExtensionService.setStorageData('stockAnalysis', analysis);
+            lastSignatureRef.current = signature;
+          } catch (e) {
+            // keep UI with sentiment only if analysis fails
+          } finally {
+            setIsLoading(false);
+            isGeneratingRef.current = false;
+          }
+        }
       } catch (err) {
         console.error('Failed to initialize stock data from storage', err);
       }
@@ -404,7 +451,15 @@ export default function StockAnalysisSidebar({ data }: StockAnalysisSidebarProps
       console.log('Starting analysis generation...');
       // Clear cached data first to force fresh API calls
       await ChromeExtensionService.clearStorageData('stockAnalysis');
-      const analysis = await ChromeExtensionService.generateAnalysis('AAPL') as StockData;
+      const storedTicker = (await ChromeExtensionService.getStorageData('stockTicker')) as string | undefined;
+      const storedRange = (await ChromeExtensionService.getStorageData('stockRange')) as any;
+      const { startDate, endDate } = parseStoredRange(storedRange?.stockTimeRange);
+      const tickerToUse = (storedTicker && typeof storedTicker === 'string' && storedTicker.trim()) ? storedTicker.trim().toUpperCase() : 'AAPL';
+      const analysis = await ChromeExtensionService.generateAnalysis(
+        tickerToUse,
+        startDate,
+        endDate
+      ) as StockData;
       console.log('Analysis generated:', analysis);
       setStockData(analysis);
       await ChromeExtensionService.setStorageData('stockAnalysis', analysis);
