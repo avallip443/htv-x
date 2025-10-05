@@ -556,7 +556,7 @@ export default function StockAnalysisSidebar({ data }: StockAnalysisSidebarProps
           <div className="flex items-start justify-between">
             <div className="flex items-center gap-2">
               <Sparkles className="w-5 h-5 text-emerald-500" />
-              <h1 className="text-lg font-bold text-emerald-500">Stock Insight AI</h1>
+              <h1 className="text-lg font-bold text-emerald-500">Sherlock and Stock</h1>
             </div>
             <Button 
               onClick={handleGenerateAnalysis}
