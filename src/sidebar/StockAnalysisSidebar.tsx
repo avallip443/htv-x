@@ -3,6 +3,15 @@ import { Card } from "../components/ui/card";
 import { Badge } from "../components/ui/badge";
 import { Button } from "../components/ui/button";
 import { AlertCircle, TrendingUp, TrendingDown, Calendar, Newspaper, Brain, MessageCircle, DollarSign, Star, ExternalLink, ChevronRight, Sparkles } from "lucide-react";
+import { PerplexityService } from "../services/perplexityService";
+import { AlphaVantageService } from "../services/alphaVantageService";
+
+interface SentimentData {
+  overallSentiment: 'bullish' | 'bearish' | 'neutral';
+  confidence: number;
+  explanation: string;
+  totalArticles: number;
+}
 
 interface StockData {
   stockName: string;
@@ -17,6 +26,8 @@ interface StockData {
   confidence?: number;
   hasError?: boolean;
   errorMessage?: string;
+  sources?: Array<{ id: number; name: string; url: string; }>;
+  sentiment?: SentimentData;
 }
 
 interface StockAnalysisSidebarProps {
@@ -41,32 +52,168 @@ class ChromeExtensionService {
     });
   }
 
+  static async clearStorageData(key: string) {
+    return new Promise<void>((resolve) => {
+      chrome.storage.local.remove([key], () => {
+        resolve();
+      });
+    });
+  }
+
   static async setStorageData(key: string, value: any) {
-    return new Promise((resolve) => {
-      chrome.storage.local.set({ [key]: value }, resolve);
+    return new Promise<void>((resolve) => {
+      chrome.storage.local.set({ [key]: value }, () => {
+        resolve();
+      });
     });
   }
 
   static async generateAnalysis(ticker: string) {
-    // Simulate API call to Perplexity or other AI service
-    return new Promise((resolve) => {
-      setTimeout(() => {
-        const mockAnalysis = {
-          stockName: this.getStockName(ticker),
-          ticker: ticker,
-          startDate: "Jan 1, 2025",
-          endDate: "Jan 15, 2025",
-          startPrice: 185.00,
-          endPrice: 195.00,
-          percentChange: 5.4,
-          aiAnalysis: `Based on recent market data for ${ticker}, the stock has shown positive momentum. Market sentiment appears favorable with strong technical indicators. Key drivers include positive earnings expectations and sector rotation. However, investors should monitor for potential volatility and consider risk management strategies.`,
-          lastUpdated: "2 minutes ago",
-          confidence: 87,
-          hasError: false
-        };
-        resolve(mockAnalysis);
-      }, 1500);
+    try {
+      // Get current date and date 30 days ago for analysis period
+      const endDate = new Date();
+      const startDate = new Date();
+      startDate.setDate(endDate.getDate() - 30);
+      
+      const startDateStr = PerplexityService.formatDateForAnalysis(startDate.toISOString());
+      const endDateStr = PerplexityService.formatDateForAnalysis(endDate.toISOString());
+      const companyName = PerplexityService.getCompanyName(ticker);
+      
+      // Generate analysis using Perplexity
+      const fullAnalysisMarkdown = await PerplexityService.generateStockAnalysis({
+        ticker,
+        companyName,
+        startDate: startDateStr,
+        endDate: endDateStr
+      });
+
+      // Parse sources from the analysis
+      const { analysisContent, sources } = this.parseSourcesFromAnalysis(fullAnalysisMarkdown);
+
+      // Get sentiment analysis from Alpha Vantage
+      const sentiment = await AlphaVantageService.getSentimentAnalysis(
+        ticker,
+        startDateStr,
+        endDateStr
+      );
+
+      // Mock price data for now (you can integrate with real price API later)
+      const mockPriceData = this.generateMockPriceData(ticker);
+      
+      return {
+        stockName: companyName,
+        ticker: ticker,
+        startDate: startDateStr,
+        endDate: endDateStr,
+        startPrice: mockPriceData.startPrice,
+        endPrice: mockPriceData.endPrice,
+        percentChange: mockPriceData.percentChange,
+        aiAnalysis: analysisContent,
+        lastUpdated: "Just now",
+        confidence: 92,
+        hasError: false,
+        sources: sources,
+        sentiment: sentiment
+      };
+    } catch (error) {
+      console.error('Error generating analysis:', error);
+      return {
+        stockName: this.getStockName(ticker),
+        ticker: ticker,
+        startDate: "Jan 1, 2025",
+        endDate: "Jan 15, 2025",
+        startPrice: 185.00,
+        endPrice: 195.00,
+        percentChange: 5.4,
+        aiAnalysis: `Unable to generate comprehensive analysis at this time. Error: ${error.message}. Please try again later.`,
+        lastUpdated: "Error",
+        confidence: 0,
+        hasError: true,
+        errorMessage: error.message,
+        sources: [],
+        sentiment: {
+          overallSentiment: 'neutral',
+          confidence: 0,
+          explanation: 'Unable to fetch sentiment data.',
+          totalArticles: 0
+        }
+      };
+    }
+  }
+
+  private static parseSourcesFromAnalysis(markdown: string): { analysisContent: string; sources: Array<{ id: number; name: string; url: string; }> } {
+    const lines = markdown.split('\n');
+    let analysisContentLines: string[] = [];
+    let sourceLines: string[] = [];
+    let inSourcesSection = false;
+    const sources: Array<{ id: number; name: string; url: string; }> = [];
+
+    // Split content and sources sections
+    for (const line of lines) {
+      if (line.startsWith('### Sources')) {
+        inSourcesSection = true;
+        continue;
+      }
+
+      if (inSourcesSection) {
+        sourceLines.push(line);
+      } else {
+        analysisContentLines.push(line);
+      }
+    }
+
+    // Parse sources from the sources section
+    sourceLines.forEach(line => {
+      // Match format: "1. [Source Name] - [Source URL]" or "1. Source Name - URL"
+      const match = line.match(/^(\d+)\.\s*\[([^\]]+)\]\s*-\s*\[([^\]]+)\]\(([^)]+)\)/);
+      if (match) {
+        const id = parseInt(match[1], 10);
+        const name = match[2];
+        const url = match[4];
+        sources.push({ id, name, url });
+      } else {
+        // Fallback for different formats
+        const fallbackMatch = line.match(/^(\d+)\.\s*(.+?)\s*-\s*(https?:\/\/[^\s]+)/);
+        if (fallbackMatch) {
+          const id = parseInt(fallbackMatch[1], 10);
+          const name = fallbackMatch[2].trim();
+          const url = fallbackMatch[3];
+          sources.push({ id, name, url });
+        }
+      }
     });
+
+    return {
+      analysisContent: analysisContentLines.join('\n').trim(),
+      sources: sources
+    };
+  }
+
+  private static generateMockPriceData(ticker: string) {
+    // Generate realistic mock price data based on ticker
+    const basePrices: { [key: string]: number } = {
+      'AAPL': 185.00,
+      'GOOGL': 135.00,
+      'MSFT': 380.00,
+      'TSLA': 250.00,
+      'AMZN': 150.00,
+      'META': 350.00,
+      'NVDA': 750.00,
+      'NFLX': 450.00,
+      'AMD': 120.00,
+      'INTC': 45.00
+    };
+    
+    const basePrice = basePrices[ticker] || 100.00;
+    const percentChange = (Math.random() - 0.5) * 20; // Random change between -10% and +10%
+    const startPrice = basePrice / (1 + percentChange / 100);
+    const endPrice = basePrice;
+    
+    return {
+      startPrice: parseFloat(startPrice.toFixed(2)),
+      endPrice: parseFloat(endPrice.toFixed(2)),
+      percentChange: parseFloat(percentChange.toFixed(2))
+    };
   }
 
   static async sendMessageToGemini(message: string, ticker: string, stockData: any) {
@@ -148,6 +295,7 @@ export default function StockAnalysisSidebar({ data }: StockAnalysisSidebarProps
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
   const [isTyping, setIsTyping] = useState(false);
   const [inputMessage, setInputMessage] = useState("");
+  const [showSentimentExplanation, setShowSentimentExplanation] = useState(false);
 
   // Default sample data
   const defaultData: StockData = {
@@ -161,7 +309,13 @@ export default function StockAnalysisSidebar({ data }: StockAnalysisSidebarProps
     aiAnalysis: "Apple's stock has shown strong momentum over the past two weeks, driven by positive market sentiment and strong holiday sales data. The tech sector has been performing well, with AAPL benefiting from increased consumer spending. Analysts suggest continued growth potential, though investors should remain cautious of broader market volatility.",
     lastUpdated: "2 minutes ago",
     confidence: 87,
-    hasError: false
+    hasError: false,
+    sentiment: {
+      overallSentiment: 'neutral',
+      confidence: 0,
+      explanation: 'No sentiment data available. Click refresh to generate analysis.',
+      totalArticles: 0
+    }
   };
 
   const currentData = stockData || data || defaultData;
@@ -181,8 +335,12 @@ export default function StockAnalysisSidebar({ data }: StockAnalysisSidebarProps
   const handleGenerateAnalysis = async () => {
     setIsLoading(true);
     try {
-      const analysis = await ChromeExtensionService.generateAnalysis('AAPL');
-      setStockData(analysis as StockData);
+      console.log('Starting analysis generation...');
+      // Clear cached data first to force fresh API calls
+      await ChromeExtensionService.clearStorageData('stockAnalysis');
+      const analysis = await ChromeExtensionService.generateAnalysis('AAPL') as StockData;
+      console.log('Analysis generated:', analysis);
+      setStockData(analysis);
       await ChromeExtensionService.setStorageData('stockAnalysis', analysis);
     } catch (error) {
       setStockData({
@@ -246,6 +404,128 @@ export default function StockAnalysisSidebar({ data }: StockAnalysisSidebarProps
   const isPositive = currentData.percentChange >= 0;
   const priceChange = currentData.endPrice - currentData.startPrice;
 
+  // Simple markdown renderer for the AI analysis
+  const renderMarkdownContent = (content: string) => {
+    if (!content) return null;
+    
+    // Split content into lines and process each line
+    const lines = content.split('\n');
+    
+    return lines.map((line, index) => {
+      // Handle headers
+      if (line.startsWith('# ')) {
+        return (
+          <h1 key={index} className="text-lg font-bold text-white mt-4 mb-2 first:mt-0">
+            {line.substring(2)}
+          </h1>
+        );
+      }
+      if (line.startsWith('## ')) {
+        return (
+          <h2 key={index} className="text-lg font-bold text-emerald-400 mt-4 mb-3 first:mt-0">
+            {line.substring(3)}
+          </h2>
+        );
+      }
+      if (line.startsWith('### ')) {
+        return (
+          <h3 key={index} className="text-base font-bold text-white mt-3 mb-2 first:mt-0">
+            {line.substring(4)}
+          </h3>
+        );
+      }
+      if (line.startsWith('#### ')) {
+        return (
+          <h4 key={index} className="text-sm font-medium text-slate-300 mt-2 mb-1">
+            {line.substring(5)}
+          </h4>
+        );
+      }
+      
+      // Handle horizontal rules
+      if (line.trim() === '---') {
+        return (
+          <hr key={index} className="border-slate-600 my-3" />
+        );
+      }
+      
+      // Handle bullet points
+      if (line.startsWith('- ')) {
+        return (
+          <li key={index} className="text-slate-300 text-sm ml-4">
+            {line.substring(2)}
+          </li>
+        );
+      }
+      
+      // Handle table rows
+      if (line.includes('|') && line.trim().length > 0) {
+        const cells = line.split('|').map(cell => cell.trim()).filter(cell => cell);
+        
+        // Skip separator rows
+        if (cells.every(cell => cell.match(/^[-:]+$/))) {
+          return null;
+        }
+        
+        return (
+          <tr key={index} className="border-b border-slate-700">
+            {cells.map((cell, cellIndex) => (
+              <td key={cellIndex} className="px-2 py-1 text-xs text-slate-300">
+                {cell}
+              </td>
+            ))}
+          </tr>
+        );
+      }
+      
+      // Handle source links
+      if (line.includes('📎 Source:')) {
+        return (
+          <div key={index} className="mt-2 mb-0">
+            <p className="text-xs text-blue-400 bg-blue-900/20 px-2 py-1 rounded-md inline-block">
+              {line}
+            </p>
+          </div>
+        );
+      }
+      
+      // Handle other links
+      if (line.includes('[Link]')) {
+        return (
+          <p key={index} className="text-xs text-blue-400 mt-1">
+            {line}
+          </p>
+        );
+      }
+      
+      // Handle regular paragraphs
+      if (line.trim().length > 0) {
+        // Check if this is a description following a key event (h3)
+        const prevLine = index > 0 ? lines[index - 1] : '';
+        const isEventDescription = prevLine.startsWith('### ');
+        
+        if (isEventDescription) {
+          return (
+            <div key={index} className="bg-slate-700/40 rounded-xl p-4 mb-4 border border-slate-600/50 shadow-sm">
+              <p className="text-slate-300 text-sm leading-relaxed">
+                {line}
+              </p>
+            </div>
+          );
+        }
+        
+        return (
+          <p key={index} className="text-slate-300 text-sm mb-2 leading-relaxed">
+            {line}
+          </p>
+        );
+      }
+      
+      // Empty lines
+      return <br key={index} />;
+    });
+  };
+
   // Error state
   if (currentData.hasError) {
     return (
@@ -276,7 +556,7 @@ export default function StockAnalysisSidebar({ data }: StockAnalysisSidebarProps
           <div className="flex items-start justify-between">
             <div className="flex items-center gap-2">
               <Sparkles className="w-5 h-5 text-emerald-500" />
-              <h1 className="text-lg font-bold text-emerald-500">Stock Insight AI</h1>
+              <h1 className="text-lg font-bold text-emerald-500">Sherlock and Stock</h1>
             </div>
             <Button 
               onClick={handleGenerateAnalysis}
@@ -362,17 +642,61 @@ export default function StockAnalysisSidebar({ data }: StockAnalysisSidebarProps
           </div>
         </Card>
 
+        {/* Sentiment Analysis */}
+        {currentData.sentiment && (
+          <Card className="bg-slate-800 border-slate-700 p-4">
+            <div className="flex items-center gap-2 mb-3">
+              <TrendingUp className="w-4 h-4 text-emerald-400" />
+              <span className="text-xs font-medium text-slate-400 uppercase tracking-wide">
+                Market Sentiment
+              </span>
+            </div>
+            
+            <div className="flex items-center justify-start gap-3">
+              <div className={`px-6 py-3 rounded-lg font-semibold text-base w-35 text-center flex items-center ${
+                currentData.sentiment.overallSentiment === 'bullish' 
+                  ? 'bg-emerald-900/50 text-emerald-400' 
+                  : currentData.sentiment.overallSentiment === 'bearish'
+                  ? 'bg-red-900/50 text-red-400'
+                  : 'bg-slate-700/50 text-slate-400'
+              }`}>
+                {currentData.sentiment.overallSentiment === 'bullish' ? 'Positive/Bullish' : 
+                 currentData.sentiment.overallSentiment === 'bearish' ? 'Negative/Bearish' : 'Neutral'}
+              </div>
+              
+              <button
+                onClick={() => setShowSentimentExplanation(!showSentimentExplanation)}
+                className="text-slate-400 hover:text-white transition-colors flex items-center justify-center w-8 h-8"
+                title="Show explanation"
+              >
+                <AlertCircle className="w-4 h-4" />
+              </button>
+            </div>
+            
+            {showSentimentExplanation && (
+              <div className="mt-3 p-3 bg-slate-700/30 rounded-lg border-l-2 border-slate-600">
+                <p className="text-sm text-slate-300">
+                  {currentData.sentiment.explanation}
+                </p>
+                <p className="text-xs text-slate-400 mt-2">
+                  Based on {currentData.sentiment.totalArticles} articles ({currentData.sentiment.confidence}% confidence)
+                </p>
+              </div>
+            )}
+          </Card>
+        )}
+
         {/* AI Summary */}
         <Card className="bg-slate-800 border-slate-700 p-4">
           <div className="flex items-center gap-2 mb-3">
             <Brain className="w-4 h-4 text-purple-400" />
             <span className="text-xs font-medium text-slate-400 uppercase tracking-wide">
-              AI Summary
+              AI Analysis
             </span>
           </div>
-          <p className="text-sm text-slate-300 leading-relaxed">
-            {currentData.aiAnalysis}
-          </p>
+          <div className="text-sm text-slate-300 leading-relaxed prose prose-slate prose-sm max-w-none">
+            {renderMarkdownContent(currentData.aiAnalysis)}
+          </div>
         </Card>
 
         {/* Data Sources */}
@@ -402,20 +726,29 @@ export default function StockAnalysisSidebar({ data }: StockAnalysisSidebarProps
             <a href="#" className="flex items-center gap-2 p-2 rounded-lg bg-slate-700/50 hover:bg-slate-700 transition-colors group">
               <Brain className="w-4 h-4 text-purple-400" />
               <div className="flex-1 min-w-0">
-                <p className="text-xs font-medium text-white truncate">OpenAI GPT-4</p>
+                <p className="text-xs font-medium text-white truncate">Perplexity AI</p>
                 <p className="text-[10px] text-slate-400">Analysis</p>
               </div>
               <ExternalLink className="w-3 h-3 text-slate-500 group-hover:text-slate-300" />
             </a>
-            
-            <a href="#" className="flex items-center gap-2 p-2 rounded-lg bg-slate-700/50 hover:bg-slate-700 transition-colors group">
-              <MessageCircle className="w-4 h-4 text-orange-400" />
-              <div className="flex-1 min-w-0">
-                <p className="text-xs font-medium text-white truncate">StockTwits</p>
-                <p className="text-[10px] text-slate-400">Sentiment</p>
-              </div>
-              <ExternalLink className="w-3 h-3 text-slate-500 group-hover:text-slate-300" />
-            </a>
+
+            {/* Dynamic Sources from Perplexity */}
+            {currentData.sources && currentData.sources.map((source) => (
+              <a 
+                key={source.id} 
+                href={source.url} 
+                target="_blank" 
+                rel="noopener noreferrer" 
+                className="flex items-center gap-2 p-2 rounded-lg bg-slate-700/50 hover:bg-slate-700 transition-colors group"
+              >
+                <Newspaper className="w-4 h-4 text-orange-400" />
+                <div className="flex-1 min-w-0">
+                  <p className="text-xs font-medium text-white truncate">{source.name}</p>
+                  <p className="text-[10px] text-slate-400">Source {source.id}</p>
+                </div>
+                <ExternalLink className="w-3 h-3 text-slate-500 group-hover:text-slate-300" />
+              </a>
+            ))}
           </div>
         </Card>
 
