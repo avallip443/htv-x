@@ -21,6 +21,7 @@ interface StockData {
   startPrice: number;
   endPrice: number;
   percentChange: number;
+  priceChange: number;
   aiAnalysis: string;
   lastUpdated?: string;
   confidence?: number;
@@ -97,7 +98,6 @@ class ChromeExtensionService {
         endDateStr
       );
 
-      // Mock price data for now (you can integrate with real price API later)
       const mockPriceData = this.generateMockPriceData(ticker);
       
       return {
@@ -108,6 +108,7 @@ class ChromeExtensionService {
         startPrice: mockPriceData.startPrice,
         endPrice: mockPriceData.endPrice,
         percentChange: mockPriceData.percentChange,
+        priceChange: mockPriceData.priceChange,
         aiAnalysis: analysisContent,
         lastUpdated: "Just now",
         confidence: 92,
@@ -125,6 +126,7 @@ class ChromeExtensionService {
         startPrice: 185.00,
         endPrice: 195.00,
         percentChange: 5.4,
+        priceChange: 10.00,
         aiAnalysis: `Unable to generate comprehensive analysis at this time. Error: ${error.message}. Please try again later.`,
         lastUpdated: "Error",
         confidence: 0,
@@ -205,14 +207,16 @@ class ChromeExtensionService {
     };
     
     const basePrice = basePrices[ticker] || 100.00;
-    const percentChange = (Math.random() - 0.5) * 20; // Random change between -10% and +10%
+    const percentChange = (Math.random() - 0.5) * 20; // Random change between -10% and +10% 
     const startPrice = basePrice / (1 + percentChange / 100);
     const endPrice = basePrice;
+    const priceChange = startPrice - endPrice;
     
     return {
       startPrice: parseFloat(startPrice.toFixed(2)),
       endPrice: parseFloat(endPrice.toFixed(2)),
-      percentChange: parseFloat(percentChange.toFixed(2))
+      percentChange: parseFloat(percentChange.toFixed(2)),
+      priceChange: parseFloat(priceChange.toFixed(2))
     };
   }
 
@@ -297,17 +301,17 @@ export default function StockAnalysisSidebar({ data }: StockAnalysisSidebarProps
   const [inputMessage, setInputMessage] = useState("");
   const [showSentimentExplanation, setShowSentimentExplanation] = useState(false);
 
-  // Default sample data
   const defaultData: StockData = {
-    stockName: "Apple Inc.",
-    ticker: "AAPL",
-    startDate: "Jan 1, 2025",
-    endDate: "Jan 15, 2025",
-    startPrice: 185.00,
-    endPrice: 195.00,
-    percentChange: 5.4,
-    aiAnalysis: "Apple's stock has shown strong momentum over the past two weeks, driven by positive market sentiment and strong holiday sales data. The tech sector has been performing well, with AAPL benefiting from increased consumer spending. Analysts suggest continued growth potential, though investors should remain cautious of broader market volatility.",
-    lastUpdated: "2 minutes ago",
+    stockName: "",
+    ticker: "",
+    startDate: "",
+    endDate: "",
+    startPrice: 0.00,
+    endPrice: 0.00,
+    percentChange: 0.0,
+    priceChange: 0.0,
+    aiAnalysis: "",
+    lastUpdated: "",
     confidence: 87,
     hasError: false,
     sentiment: {
@@ -320,16 +324,76 @@ export default function StockAnalysisSidebar({ data }: StockAnalysisSidebarProps
 
   const currentData = stockData || data || defaultData;
 
+  const parseStoredRange = (rangeText?: string) => {
+    if (!rangeText) return { startDate: defaultData.startDate, endDate: defaultData.endDate };
+    let start = rangeText;
+    let end = rangeText;
+    if (rangeText.includes("→")) {
+      [start, end] = rangeText.split("→").map((s) => s.trim());
+    } else if (rangeText.toLowerCase().includes(" to ")) {
+      [start, end] = rangeText.split(/\s+to\s+/i).map((s) => s.trim());
+    } else if (rangeText.includes("-")) {
+      const parts = rangeText.split("-").map((s) => s.trim());
+      if (parts.length >= 2) {
+        start = parts[0];
+        end = parts.slice(1).join(" - ");
+      }
+    }
+    return { startDate: start, endDate: end };
+  };
+
   useEffect(() => {
-    // Check if we have stored data or should generate new analysis
     const initializeData = async () => {
-      const storedData = await ChromeExtensionService.getStorageData('stockAnalysis');
-      if (storedData) {
-        setStockData(storedData);
+      try {
+        const results = await Promise.all([
+          ChromeExtensionService.getStorageData('stockName'),
+          ChromeExtensionService.getStorageData('stockTicker'),
+          ChromeExtensionService.getStorageData('stockRange'),
+        ]);
+        const storedName = results[0] as string | undefined;
+        const storedTicker = results[1] as string | undefined;
+        const storedRange = results[2] as any;
+
+        const stockRange = storedRange as any;
+        const { startDate, endDate } = parseStoredRange(stockRange?.stockTimeRange);
+
+        const merged: StockData = {
+          stockName: storedName || defaultData.stockName,
+          ticker: storedTicker || defaultData.ticker,
+          startDate,
+          endDate,
+          startPrice: stockRange?.endPrice && stockRange?.priceChange 
+            ? stockRange.endPrice - stockRange.priceChange 
+            : defaultData.startPrice,
+          endPrice: stockRange?.endPrice || defaultData.endPrice,
+          percentChange: stockRange?.percentageChange ?? defaultData.percentChange,
+          priceChange: stockRange?.priceChange || defaultData.priceChange,
+          aiAnalysis: defaultData.aiAnalysis,
+          lastUpdated: "just now",
+          confidence: defaultData.confidence,
+          hasError: false,
+        };
+
+        setStockData(merged);
+      } catch (err) {
+        console.error('Failed to initialize stock data from storage', err);
       }
     };
-    
+
     initializeData();
+
+    const onStorageChanged = (changes: any, areaName: string) => {
+      if (areaName !== 'local') return;
+      if (changes.stockName || changes.stockTicker || changes.stockRange) {
+        initializeData();
+      }
+    };
+
+    chrome.storage.onChanged.addListener(onStorageChanged);
+
+    return () => {
+      try { chrome.storage.onChanged.removeListener(onStorageChanged); } catch { }
+    };
   }, []);
 
   const handleGenerateAnalysis = async () => {
@@ -401,14 +465,11 @@ export default function StockAnalysisSidebar({ data }: StockAnalysisSidebarProps
     handleSendMessage(question);
   };
 
-  const isPositive = currentData.percentChange >= 0;
-  const priceChange = currentData.endPrice - currentData.startPrice;
+  const isPositive = currentData.priceChange >= 0;
 
-  // Simple markdown renderer for the AI analysis
   const renderMarkdownContent = (content: string) => {
     if (!content) return null;
     
-    // Split content into lines and process each line
     const lines = content.split('\n');
     
     return lines.map((line, index) => {
@@ -613,7 +674,7 @@ export default function StockAnalysisSidebar({ data }: StockAnalysisSidebarProps
           <div className="flex items-center justify-between">
             <div>
               <p className="text-slate-400 text-sm mb-2">
-                ${currentData.startPrice.toFixed(2)} → ${currentData.endPrice.toFixed(2)}
+                ${Number(currentData.startPrice).toFixed(2)} → ${Number(currentData.endPrice).toFixed(2)}
               </p>
               <div className="flex items-center gap-2">
                 {isPositive ? (
@@ -624,7 +685,7 @@ export default function StockAnalysisSidebar({ data }: StockAnalysisSidebarProps
                 <span className={`text-2xl font-bold ${
                   isPositive ? "text-emerald-500" : "text-red-500"
                 }`}>
-                  {isPositive ? "+" : ""}${Math.abs(priceChange).toFixed(2)}
+                  {isPositive ? "+" : ""}${currentData.priceChange}
                 </span>
               </div>
             </div>
