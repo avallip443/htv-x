@@ -3,18 +3,120 @@
 
 <head>
     <meta charset="UTF-8" />
-    <title>Stock Explainer</title>
+    <title>Stock Insight AI</title>
     <link rel="stylesheet" href="styles.css" />
 </head>
 
-<body>
-    <h2>Stock Explainer</h2>
-
-    <div id="stock-info">
-        <p id="stock-name">Detecting stock...</p>
+<body class="stock-analysis-app">
+    <!-- Header -->
+    <div class="header-section">
+        <div class="header-content">
+            <div class="header-main">
+                <div class="sparkles-icon">✨</div>
+                <h1 class="app-title">Stock Insight AI</h1>
+            </div>
+        </div>
+        
+        <div class="stock-header">
+            <h2 id="stock-name" class="stock-title">Apple Inc.</h2>
+            <div id="ticker-badge" class="ticker-badge">AAPL</div>
+        </div>
     </div>
 
-    <div id="perplexity-section">
+    <!-- Date Range Card -->
+    <div class="card date-range-card">
+        <div class="card-header">
+            <div class="calendar-icon">📅</div>
+            <span class="section-label">Date Range</span>
+        </div>
+        <div class="date-range-content">
+            <div class="date-column">
+                <p class="date-label">Start</p>
+                <p id="start-date-display" class="date-value">Jan 1, 2025</p>
+            </div>
+            <div class="chevron-icon">→</div>
+            <div class="date-column">
+                <p class="date-label">End</p>
+                <p id="end-date-display" class="date-value">Jan 15, 2025</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Price Change Card -->
+    <div id="price-change-card" class="card price-change-card positive">
+        <div class="card-header">
+            <div class="dollar-icon">💰</div>
+            <span class="section-label">Price Change</span>
+        </div>
+        <div class="price-content">
+            <div class="price-info">
+                <p id="price-range" class="price-range">$185.00 → $195.00</p>
+                <div class="price-change-row">
+                    <div id="trend-icon" class="trend-icon positive">📈</div>
+                    <span id="price-change-amount" class="price-change-amount positive">+$10.00</span>
+                </div>
+            </div>
+            <div id="percent-change" class="percent-change positive">
+                <p class="percent-value">+5.4%</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- AI Summary Card -->
+    <div class="card ai-summary-card">
+        <div class="card-header">
+            <div class="brain-icon">🧠</div>
+            <span class="section-label">AI Summary</span>
+        </div>
+        <p id="ai-analysis" class="ai-analysis-text">
+            Apple's stock has shown strong momentum over the past two weeks, driven by positive market sentiment and strong holiday sales data. The tech sector has been performing well, with AAPL benefiting from increased consumer spending. Analysts suggest continued growth potential, though investors should remain cautious of broader market volatility.
+        </p>
+    </div>
+
+    <!-- Data Sources Card -->
+    <div class="card data-sources-card">
+        <h3 class="section-label">Data Sources</h3>
+        <div class="sources-grid">
+            <div class="source-item">
+                <div class="source-icon blue">💰</div>
+                <div class="source-info">
+                    <p class="source-name">Yahoo Finance</p>
+                    <p class="source-desc">Price Data</p>
+                </div>
+                <div class="external-link">↗</div>
+            </div>
+            
+            <div class="source-item">
+                <div class="source-icon green">📰</div>
+                <div class="source-info">
+                    <p class="source-name">Alpha Vantage</p>
+                    <p class="source-desc">News (50+)</p>
+                </div>
+                <div class="external-link">↗</div>
+            </div>
+            
+            <div class="source-item">
+                <div class="source-icon purple">🧠</div>
+                <div class="source-info">
+                    <p class="source-name">Perplexity AI</p>
+                    <p class="source-desc">Analysis</p>
+                </div>
+                <div class="external-link">↗</div>
+            </div>
+            
+            <div class="source-item">
+                <div class="source-icon orange">💬</div>
+                <div class="source-info">
+                    <p class="source-name">StockTwits</p>
+                    <p class="source-desc">Sentiment</p>
+                </div>
+                <div class="external-link">↗</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Form Inputs (Hidden by default) -->
+    <div id="input-section" class="input-section hidden">
         <div class="form-group">
             <label for="company-name">Company Name:</label>
             <input type="text" id="company-name" placeholder="e.g., Apple Inc." value="Apple Inc." />
@@ -38,11 +140,69 @@
         </div>
         
         <button id="generate-analysis-btn">Generate Analysis</button>
-        
-        <div id="perplexity-results">
-            <p id="perplexity-placeholder">Click "Generate Analysis" to get AI-powered stock insights...</p>
+    </div>
+
+    <!-- Results Container -->
+    <div id="perplexity-results" class="results-container">
+        <!-- Results will be populated here -->
+    </div>
+
+    <!-- Metadata -->
+    <div class="metadata">
+        <div class="status-indicator">
+            <div class="status-dot"></div>
+            <span id="last-updated">Updated 2 minutes ago</span>
+        </div>
+        <div class="confidence-rating">
+            <span>Confidence: <span id="confidence-score">87</span>%</span>
+            <div class="stars">
+                <span class="star filled">★</span>
+                <span class="star filled">★</span>
+                <span class="star filled">★</span>
+                <span class="star filled">★</span>
+                <span class="star">☆</span>
+            </div>
         </div>
     </div>
+
+    <!-- Chat Interface -->
+    <button id="chat-toggle" class="chat-button">
+        <div class="chat-icon">💬</div>
+        Continue the conversation
+    </button>
+
+    <div id="chat-interface" class="chat-interface hidden">
+        <div class="chat-header">
+            <div class="chat-avatar">🧠</div>
+            <div class="chat-info">
+                <h3 class="chat-title">AI Assistant</h3>
+                <p class="chat-subtitle">Ask me anything about AAPL</p>
+            </div>
+            <button id="chat-close" class="chat-close">✕</button>
+        </div>
+        <div class="chat-content">
+            <div class="suggestions-box">
+                <p class="suggestions-title">Try asking:</p>
+                <div class="suggestions-list">
+                    <button class="suggestion-item">"What's driving this price change?"</button>
+                    <button class="suggestion-item">"Should I buy or sell?"</button>
+                    <button class="suggestion-item">"What are the risks?"</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Disclaimer -->
+    <div class="disclaimer">
+        <div class="disclaimer-icon">⚠️</div>
+        <div class="disclaimer-content">
+            <h4 class="disclaimer-title">Disclaimer</h4>
+            <p class="disclaimer-text">
+                This analysis is for educational purposes only. Not financial advice. Always do your own research before investing.
+            </p>
+        </div>
+    </div>
+
     <script src="popup.js"></script>
 </body>
 

@@ -1,16 +1,34 @@
+// UI Elements
 const stockNameEl = document.getElementById("stock-name");
+const tickerBadgeEl = document.getElementById("ticker-badge");
+const startDateDisplayEl = document.getElementById("start-date-display");
+const endDateDisplayEl = document.getElementById("end-date-display");
+const priceRangeEl = document.getElementById("price-range");
+const priceChangeAmountEl = document.getElementById("price-change-amount");
+const trendIconEl = document.getElementById("trend-icon");
+const percentChangeEl = document.getElementById("percent-change");
+const aiAnalysisEl = document.getElementById("ai-analysis");
+const lastUpdatedEl = document.getElementById("last-updated");
+const confidenceScoreEl = document.getElementById("confidence-score");
+const starsEl = document.querySelectorAll(".star");
+
+// Form Elements
 const companyNameEl = document.getElementById("company-name");
 const tickerSymbolEl = document.getElementById("ticker-symbol");
 const startDateEl = document.getElementById("start-date");
 const endDateEl = document.getElementById("end-date");
 const generateAnalysisBtn = document.getElementById("generate-analysis-btn");
 const perplexityResultsEl = document.getElementById("perplexity-results");
-const perplexityPlaceholderEl = document.getElementById("perplexity-placeholder");
+
+// Chat Elements
+const chatToggleEl = document.getElementById("chat-toggle");
+const chatInterfaceEl = document.getElementById("chat-interface");
+const chatCloseEl = document.getElementById("chat-close");
 
 // Load configuration
 // Note: In a real Chrome extension, you'd typically use chrome.storage for sensitive data
 const CONFIG = {
-  PERPLEXITY_API_KEY: "YOUR_PERPLEXITY_API_KEY", // Set your API key here
+  PERPLEXITY_API_KEY: "YOUR_PERPLEXITY_API_KEY_HERE", // Replace with your actual API key
   PERPLEXITY_API_URL: "https://api.perplexity.ai/chat/completions",
   DEFAULT_MODEL: "sonar",
   MAX_TOKENS: 1500,
@@ -43,20 +61,88 @@ const SAMPLE_COMPANY_DATA = {
   ]
 };
 
+// Stock data management
+let currentStockData = {
+  stockName: "Apple Inc.",
+  ticker: "AAPL",
+  startDate: "Jan 1, 2025",
+  endDate: "Jan 15, 2025",
+  startPrice: 185.00,
+  endPrice: 195.00,
+  percentChange: 5.4,
+  aiAnalysis: "Apple's stock has shown strong momentum over the past two weeks, driven by positive market sentiment and strong holiday sales data. The tech sector has been performing well, with AAPL benefiting from increased consumer spending. Analysts suggest continued growth potential, though investors should remain cautious of broader market volatility.",
+  lastUpdated: "2 minutes ago",
+  confidence: 87,
+  hasError: false
+};
+
 function updateStockName(name) {
-  stockNameEl.textContent = name || "Not detected";
+  stockNameEl.textContent = name || "Apple Inc.";
+  currentStockData.stockName = name || "Apple Inc.";
+}
+
+function updateUI() {
+  // Update stock info
+  stockNameEl.textContent = currentStockData.stockName;
+  tickerBadgeEl.textContent = currentStockData.ticker;
+  startDateDisplayEl.textContent = currentStockData.startDate;
+  endDateDisplayEl.textContent = currentStockData.endDate;
+  
+  // Update price info
+  priceRangeEl.textContent = `$${currentStockData.startPrice.toFixed(2)} → $${currentStockData.endPrice.toFixed(2)}`;
+  
+  const isPositive = currentStockData.percentChange >= 0;
+  const priceChange = currentStockData.endPrice - currentStockData.startPrice;
+  
+  // Update price change styling
+  const priceChangeCard = document.getElementById("price-change-card");
+  priceChangeCard.className = `card price-change-card ${isPositive ? 'positive' : 'negative'}`;
+  
+  trendIconEl.textContent = isPositive ? "📈" : "📉";
+  trendIconEl.className = `trend-icon ${isPositive ? 'positive' : 'negative'}`;
+  
+  priceChangeAmountEl.textContent = `${isPositive ? '+' : ''}$${Math.abs(priceChange).toFixed(2)}`;
+  priceChangeAmountEl.className = `price-change-amount ${isPositive ? 'positive' : 'negative'}`;
+  
+  percentChangeEl.className = `percent-change ${isPositive ? 'positive' : 'negative'}`;
+  percentChangeEl.querySelector('.percent-value').textContent = `${isPositive ? '+' : ''}${currentStockData.percentChange}%`;
+  percentChangeEl.querySelector('.percent-value').className = `percent-value ${isPositive ? 'positive' : 'negative'}`;
+  
+  // Update AI analysis
+  aiAnalysisEl.textContent = currentStockData.aiAnalysis;
+  
+  // Update metadata
+  lastUpdatedEl.textContent = `Updated ${currentStockData.lastUpdated}`;
+  confidenceScoreEl.textContent = currentStockData.confidence;
+  
+  // Update stars
+  const filledStars = Math.round(currentStockData.confidence / 20);
+  starsEl.forEach((star, index) => {
+    star.className = `star ${index < filledStars ? 'filled' : ''}`;
+  });
 }
 
 function showLoading() {
-  perplexityPlaceholderEl.style.display = "none";
   perplexityResultsEl.innerHTML = '<div class="loading">Getting AI response...</div>';
+  aiAnalysisEl.textContent = "Analyzing stock data with AI...";
 }
 
 function showError(message) {
-  perplexityResultsEl.innerHTML = `<p style="color: #dc2626; margin: 0;">Error: ${message}</p>`;
+  perplexityResultsEl.innerHTML = `<div class="error">Error: ${message}</div>`;
+  aiAnalysisEl.textContent = "Unable to generate analysis. Please try again.";
+  currentStockData.hasError = true;
+  updateUI();
 }
 
 function showResponse(response) {
+  // Update the AI analysis with the response
+  currentStockData.aiAnalysis = response;
+  currentStockData.lastUpdated = "just now";
+  currentStockData.confidence = Math.floor(Math.random() * 20) + 80; // Random confidence 80-100%
+  
+  updateUI();
+  
+  // Show the full response in results container
   perplexityResultsEl.innerHTML = `<div class="perplexity-response">${response}</div>`;
 }
 
@@ -109,7 +195,16 @@ Apple's October performance highlighted both the company's operational strength 
 }
 
 function showPlaceholder() {
-  perplexityResultsEl.innerHTML = '<p id="perplexity-placeholder">Enter a query to generate comprehensive stock analysis...</p>';
+  perplexityResultsEl.innerHTML = '<p class="text-slate-400 text-center">Enter a query to generate comprehensive stock analysis...</p>';
+}
+
+// Chat functionality
+function toggleChat() {
+  chatInterfaceEl.classList.toggle('hidden');
+}
+
+function closeChat() {
+  chatInterfaceEl.classList.add('hidden');
 }
 
 async function generateStockAnalysis() {
@@ -179,35 +274,49 @@ async function generateStockAnalysis() {
 }
 
 document.addEventListener("DOMContentLoaded", () => {
+  // Initialize UI with default data
+  updateUI();
+  
+  // Chrome storage listeners
   chrome.storage.local.get("stockName", (data) => {
-    updateStockName(data.stockName);
+    if (data.stockName && data.stockName !== "Not detected") {
+      updateStockName(data.stockName);
+      updateUI();
+    }
   });
 
   chrome.storage.onChanged.addListener((changes, area) => {
     if (area === "local" && changes.stockName) {
       updateStockName(changes.stockName.newValue);
+      updateUI();
     }
   });
 
   // Generate Analysis button functionality
   generateAnalysisBtn.addEventListener("click", async () => {
     generateAnalysisBtn.disabled = true;
+    generateAnalysisBtn.textContent = "Analyzing...";
     await generateStockAnalysis();
     generateAnalysisBtn.disabled = false;
+    generateAnalysisBtn.textContent = "Generate Analysis";
   });
+
+  // Chat interface
+  chatToggleEl.addEventListener("click", toggleChat);
+  chatCloseEl.addEventListener("click", closeChat);
 
   // Auto-fill detected stock if available
   chrome.storage.local.get("stockName", (data) => {
     if (data.stockName && data.stockName !== "Not detected") {
       const stockInfo = data.stockName;
       // Try to extract company name and ticker from detected stock
-      // This is a simple extraction - you might want to improve this logic
       if (stockInfo.includes('(') && stockInfo.includes(')')) {
         const tickerMatch = stockInfo.match(/\(([^)]+)\)/);
         const companyName = stockInfo.replace(/\s*\([^)]+\)\s*$/, '').trim();
         if (tickerMatch && companyName) {
-          companyNameEl.value = companyName;
-          tickerSymbolEl.value = tickerMatch[1];
+          currentStockData.stockName = companyName;
+          currentStockData.ticker = tickerMatch[1];
+          updateUI();
         }
       }
     }
