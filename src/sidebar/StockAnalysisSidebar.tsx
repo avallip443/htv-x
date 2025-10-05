@@ -228,16 +228,18 @@ class ChromeExtensionService {
     }
     
     const prompt = `You are a stock analysis assistant. Answer this question about ${ticker} (${stockData.stockName}):
-  
-  Stock Data:
-  - Current Price: $${stockData.endPrice}
-  - Price Change: ${stockData.percentChange}%
-  - Period: ${stockData.startDate} to ${stockData.endDate}
-  - AI Analysis: ${stockData.aiAnalysis}
-  
-  User Question: ${message}
-  
-  Please provide a helpful, professional response about this stock. Always include disclaimers about not being financial advice.`;
+
+Stock Data:
+- Current Price: $${stockData.endPrice}
+- Price Change: ${stockData.percentChange}%
+- Period: ${stockData.startDate} to ${stockData.endDate}
+- AI Analysis: ${stockData.aiAnalysis}
+
+User Question: ${message}
+
+Please provide a helpful, simple and concise response about this stock. Avoid using jargon and complex terms. Avoid lengthy responses. Answer as if your user was a dummy.
+
+Format your answer in markdown. `;
   
     try {
       const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent?key=${API_KEY}`, {

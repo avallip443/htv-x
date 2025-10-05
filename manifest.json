@@ -4,7 +4,11 @@
   "version": "1.0",
   "description": "Chatbot to explain what happened to a stock.",
   "permissions": ["sidePanel", "tabs", "scripting", "storage"],
-  "host_permissions": ["https://generativelanguage.googleapis.com/*"],
+  "host_permissions": [
+    "https://generativelanguage.googleapis.com/*",
+    "https://api.perplexity.ai/*",
+    "https://www.alphavantage.co/*"
+  ],
   "action": {
     "default_title": "Open Sherlock and Stock"
   },
