@@ -15,9 +15,11 @@
 
 (function () {
   const detectStockTicker = () => {
-    const element = document.querySelector('[data-attrid="subtitle"][role="heading"]');
+    const element = document.querySelector(
+      '[data-attrid="subtitle"][role="heading"]'
+    );
     if (element) {
-      const stockTicker = element.innerText.trim().split(": ")[1]
+      const stockTicker = element.innerText.trim().split(": ")[1];
       console.log("[content.js] 🟢 Detected stock ticker:", stockTicker);
       chrome.storage.local.set({ stockTicker });
     }
@@ -37,15 +39,21 @@
   console.log("[content.js] ✅ Range detector initialized");
 
   document.addEventListener("mousedown", (e) => {
-    if (!document.querySelector(".knowledge-finance-wholepage-chart__hover-card")) {
-      console.log("[content.js] Mouse down — no chart hover element found yet, but will watch...");
+    if (
+      !document.querySelector(".knowledge-finance-wholepage-chart__hover-card")
+    ) {
+      console.log(
+        "[content.js] Mouse down — no chart hover element found yet, but will watch..."
+      );
     }
 
     isDragging = true;
     console.log("[content.js] 🟢 Drag started");
 
     hoverObserver = new MutationObserver(() => {
-      const val = document.querySelector(".knowledge-finance-wholepage-chart__hover-card");
+      const val = document.querySelector(
+        ".knowledge-finance-wholepage-chart__hover-card"
+      );
       if (!val) return;
 
       const text = val.innerText.trim();
@@ -60,7 +68,10 @@
         .replace(/\u200E/g, "")
         .replace(/\u202F/g, "");
 
-      if (cleanCapturedRange.includes("–") || cleanCapturedRange.includes("-")) {
+      if (
+        cleanCapturedRange.includes("–") ||
+        cleanCapturedRange.includes("-")
+      ) {
         lastTimeRange = cleanCapturedRange.trim();
         lastChange = capturedStockChange.trim();
         console.log("[content.js] ⏱ Capturing range:", lastTimeRange);
@@ -99,14 +110,16 @@
       lastChange = null;
     } else {
       console.log("[content.js] ⚠️ No time range detected on mouseup");
+      chrome.storage.local.set({ stockRange: null });
     }
   });
 })();
 
-
-
 function parseDateOrTimeRange(rangeText) {
-  rangeText = rangeText.replace(/\u200E/g, "").replace(/\u202F/g, "").trim();
+  rangeText = rangeText
+    .replace(/\u200E/g, "")
+    .replace(/\u202F/g, "")
+    .trim();
   const currentYear = new Date().getFullYear();
 
   // case 1: "9:30 AM-10:30 AM"

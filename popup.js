@@ -45,7 +45,7 @@ document.addEventListener("DOMContentLoaded", () => {
         updateStockName(changes.stockName.newValue);
       }
       if (changes.stockTicker) {
-        updateStockName(changes.stockTicker.newValue);
+        updateStockTicker(changes.stockTicker.newValue);
       }
       if (changes.stockRange) {
         updateStockRange(changes.stockRange.newValue);
