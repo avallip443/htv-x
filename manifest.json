@@ -3,7 +3,11 @@
   "manifest_version": 3,
   "version": "1.0",
   "description": "Chatbot to explain what happened to a stock.",
-  "permissions": ["sidePanel", "tabs", "scripting", "storage"],
+  "permissions": ["sidePanel", "tabs", "scripting", "storage", "activeTab"],
+  "host_permissions": [
+    "https://api.factset.com/*",
+    "https://api.perplexity.ai/*"
+  ],
   "action": {
     "default_title": "Open Stock Explainer"
   },
